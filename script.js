@@ -77,6 +77,65 @@ function extractDateAndCleanName(releaseName) {
     return result;
 }
 
+// Add this function to calculate statistics from releases
+function calculateStatistics(releases) {
+    if (!releases || releases.length === 0) return;
+    
+    // Calculate total downloads
+    let totalDownloads = 0;
+    releases.forEach(release => {
+        if (release.assets && release.assets.length > 0) {
+            release.assets.forEach(asset => {
+                totalDownloads += asset.download_count;
+            });
+        }
+    });
+    
+    // Get version count
+    const versionCount = releases.length;
+    
+    // Get latest update date
+    const latestDate = new Date(releases[0].published_at);
+    const formattedDate = latestDate.toLocaleDateString('en-US', {
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric'
+    });
+    
+    // Update the DOM
+    document.getElementById('total-downloads').textContent = totalDownloads.toLocaleString();
+    document.getElementById('version-count').textContent = versionCount;
+    document.getElementById('latest-update').textContent = formattedDate;
+    
+    // Add animations
+    animateStatNumbers('total-downloads', totalDownloads);
+    animateStatNumbers('version-count', versionCount);
+}
+
+// Add this function for number counter animation
+function animateStatNumbers(elementId, targetValue) {
+    const element = document.getElementById(elementId);
+    const duration = 1500; // animation duration in ms
+    const startTime = performance.now();
+    const startValue = 0;
+    
+    function updateNumber(currentTime) {
+        const elapsedTime = currentTime - startTime;
+        if (elapsedTime < duration) {
+            const progress = elapsedTime / duration;
+            // Use easeOutQuad for smoother animation
+            const easeProgress = 1 - (1 - progress) * (1 - progress);
+            const currentValue = Math.floor(startValue + easeProgress * (targetValue - startValue));
+            element.textContent = currentValue.toLocaleString();
+            requestAnimationFrame(updateNumber);
+        } else {
+            element.textContent = targetValue.toLocaleString();
+        }
+    }
+    
+    requestAnimationFrame(updateNumber);
+}
+
 // Fetch releases from GitHub API
 async function fetchReleases() {
     try {
@@ -122,10 +181,22 @@ async function fetchReleases() {
             return new Date(b.published_at) - new Date(a.published_at);
         });
     
+        // Calculate and display statistics
+        calculateStatistics(releases);
+        
+        // Display releases as before
         displayLatestRelease(releases[0]);
         displayReleaseArchive(releases);
+        
+        // Set up version filters if they exist
+        setupVersionFilters(releases);
+        
     } catch (error) {
         console.error('Error fetching releases:', error);
+        document.getElementById('total-downloads').textContent = 'N/A';
+        document.getElementById('version-count').textContent = 'N/A';
+        document.getElementById('latest-update').textContent = 'N/A';
+        
         document.getElementById('latest-release-content').innerHTML = 
             `<div class="error"><i class="fas fa-exclamation-circle"></i> Failed to load releases. ${error.message}</div>`;
         document.getElementById('archive-content').innerHTML = 
@@ -133,7 +204,35 @@ async function fetchReleases() {
     }
 }
 
-// Extract date from release name and clean up the name
+// Add this function for version filtering
+function setupVersionFilters(releases) {
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    if (!filterButtons.length) return;
+    
+    filterButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Update active button
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            
+            const filter = button.getAttribute('data-filter');
+            
+            // Filter releases
+            let filteredReleases;
+            if (filter === 'all') {
+                filteredReleases = releases;
+            } else {
+                filteredReleases = releases.filter(release => {
+                    const name = (release.name || release.tag_name).toLowerCase();
+                    return name.includes(filter.toLowerCase());
+                });
+            }
+            
+            // Re-display filtered releases
+            displayReleaseArchive(filteredReleases);
+        });
+    });
+}// Extract date from release name and clean up the name
 function extractDateAndCleanName(releaseName) {
     const result = {
         name: releaseName,
